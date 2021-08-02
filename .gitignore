@@ -1,129 +1,37 @@
-# Byte-compiled / optimized / DLL files
-__pycache__/
-*.py[cod]
-*$py.class
+prob = LpProblem("Warehouse distribution",LpMinimize)
 
-# C extensions
-*.so
+#All routes
+Routes = [(s,d) for s in supply_dc for d in demand_store]
 
-# Distribution / packaging
-.Python
-build/
-develop-eggs/
-dist/
-downloads/
-eggs/
-.eggs/
-lib/
-lib64/
-parts/
-sdist/
-var/
-wheels/
-pip-wheel-metadata/
-share/python-wheels/
-*.egg-info/
-.installed.cfg
-*.egg
-MANIFEST
+# Referenced Route
+vars = LpVariable.dicts("Route",(supply_dc,demand_store),0,None)
+vars2 = LpVariable.dicts("Built",supply_dc,cat='Binary')
 
-# PyInstaller
-#  Usually these files are written by a python script from a template
-#  before PyInstaller builds the exe, so as to inject date/other infos into it.
-*.manifest
-*.spec
+# The objective function is added to 'prob' first
+prob += lpSum([vars[s][d]*supply_cost_dict[s][d] for (s,d) in Routes]) + lpSum([vars2[s]*supply_budget_dict[s] for s in supply_dc]), "Sum_of_Transporting_Costs"
 
-# Installer logs
-pip-log.txt
-pip-delete-this-directory.txt
+# The supply maximum constraints are added to prob for each supply node (warehouse)
+for s in supply_dc:
+    prob += lpSum([vars[s][d] for d in demand_store])<=(lpDot(supply_dict[s],vars2[s])), "Sum_of_Products_out_of_Warehouse_%s"%s
+#    prob += LpConstraint(e=(vars2[s]), sense=LpConstraintGE, rhs=1)
 
-# Unit test / coverage reports
-htmlcov/
-.tox/
-.nox/
-.coverage
-.coverage.*
-.cache
-nosetests.xml
-coverage.xml
-*.cover
-*.py,cover
-.hypothesis/
-.pytest_cache/
+# The demand minimum constraints are added to prob for each demand node (bar)
+for d in demand_store:
+    prob += lpSum([vars[s][d] for s in supply_dc])==demand_dict[d], "Sum_of_Products_into_Bar%s"%d
+                   
+# The problem data is written to an .lp file
+prob.writeLP("Warehouse distribution.lp")
 
-# Translations
-*.mo
-*.pot
+# The problem is solved using PuLP's choice of Solver
+prob.solve()
 
-# Django stuff:
-*.log
-local_settings.py
-db.sqlite3
-db.sqlite3-journal
+# The status of the solution is printed to the screen
+print("Status:", LpStatus[prob.status])
 
-# Flask stuff:
-instance/
-.webassets-cache
+# Each of the variables is printed with it's resolved optimum value
+for v in prob.variables():
+        if v.varValue > 0:
+            print(v.name, "=", v.varValue)
 
-# Scrapy stuff:
-.scrapy
-
-# Sphinx documentation
-docs/_build/
-
-# PyBuilder
-target/
-
-# Jupyter Notebook
-.ipynb_checkpoints
-
-# IPython
-profile_default/
-ipython_config.py
-
-# pyenv
-.python-version
-
-# pipenv
-#   According to pypa/pipenv#598, it is recommended to include Pipfile.lock in version control.
-#   However, in case of collaboration, if having platform-specific dependencies or dependencies
-#   having no cross-platform support, pipenv may install dependencies that don't work, or not
-#   install all needed dependencies.
-#Pipfile.lock
-
-# PEP 582; used by e.g. github.com/David-OConnor/pyflow
-__pypackages__/
-
-# Celery stuff
-celerybeat-schedule
-celerybeat.pid
-
-# SageMath parsed files
-*.sage.py
-
-# Environments
-.env
-.venv
-env/
-venv/
-ENV/
-env.bak/
-venv.bak/
-
-# Spyder project settings
-.spyderproject
-.spyproject
-
-# Rope project settings
-.ropeproject
-
-# mkdocs documentation
-/site
-
-# mypy
-.mypy_cache/
-.dmypy.json
-dmypy.json
-
-# Pyre type checker
-.pyre/
+# The optimised objective function value is printed to the screen    
+print("Total = ", value(prob.objective))
